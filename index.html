@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>函館市電 AR</title>
+  <link rel="stylesheet" href="style.css?v=3">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="gl"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div id="start">
+    <h1>函館市電 AR</h1>
+    <p>机の黒いケーブルカバーをカメラに写すと<br>電車が走ってきます</p>
+    <button id="startBtn" disabled>読み込み中…</button>
+    <p id="loadMsg" class="small"></p>
+  </div>
+
+  <div id="status" hidden></div>
+
+  <div id="debugPanel" hidden>
+    <label>黒の閾値 <input id="thresh" type="range" min="20" max="160" value="80"><span id="threshVal">80</span></label>
+    <canvas id="maskView"></canvas>
+  </div>
+  <button id="debugBtn" hidden>DEBUG</button>
+
+  <script type="module" src="main.js?v=3"></script>
+</body>
+</html>
