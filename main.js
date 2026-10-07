@@ -265,6 +265,14 @@ const history = new Map();   // frameId → { H: 前フレームからの動き,
 // 追跡に使う点: 線路の周り (段ボールと机の平面) から
 function pickFeatures(gray) {
   const m = cv.Mat.zeros(ph, pw, cv.CV_8U);
+  if (!corners) {
+    // まだ線路を見つけていない間も画面全体の動きを追っておく (検出結果を今のフレームまで運ぶため)
+    cv.rectangle(m, new cv.Point(8, 8), new cv.Point(pw - 8, ph - 8), new cv.Scalar(255), -1);
+    const pts = new cv.Mat();
+    cv.goodFeaturesToTrack(gray, pts, 200, 0.01, 8, m, 3);
+    m.delete();
+    return pts;
+  }
   const c = orderQuad(corners);
   const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
   const ctr = [(c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4];
@@ -346,13 +354,21 @@ function resetTracking() {
 }
 
 // ---- 検出 (Web Worker) ----
-const worker = new Worker('worker.js?v=8');
+const worker = new Worker('worker.js?v=9');
+const LAG = +(params.get('lag') || 0);   // テスト用: ?lag=300 で検出結果を遅らせる (遅いスマホの再現)
 let workerReady = false, workerBusy = false, lastSentFrame = -99, lastMask = null, lastDetectQuad = null;
+let detectMs = 0, sentAt = 0, disagree = 0;
+worker.onerror = (e) => { console.error('worker', e.message); workerError = e.message || 'Worker エラー'; };
+let workerError = '';
 worker.onmessage = (e) => {
-  const m = e.data;
+  if (LAG && e.data.type === 'result') { setTimeout(() => onWorkerMessage(e.data), LAG); return; }
+  onWorkerMessage(e.data);
+};
+function onWorkerMessage(m) {
   if (m.type === 'ready') { workerReady = true; return; }
   if (m.type !== 'result') return;
   workerBusy = false;
+  detectMs = performance.now() - sentAt;
   lastMask = m.mask;
   lastDetectQuad = m.quad;
   if (!m.quad) return;
@@ -366,18 +382,30 @@ worker.onmessage = (e) => {
   }
   lastGood = performance.now();
   if (!corners) {
-    corners = q;   // 最初の1回は数フレーム前の位置のまま使い、以降の検出で補正する
-  } else if (carried) {
-    // 追跡のずれを少しずつ補正。大きく食い違うときは検出の方が誤り (線路の一部しか写っていない等) とみなす
+    corners = q;
+  } else {
+    // 検出 (を今のフレームまで運んだもの) を正として、追跡のずれを直す。
+    // 大きく食い違うのが2回続いたら、追跡の方が外れているとみなして検出に置き換える
     const { q: qq, meanDist } = matchOrder(q, corners);
     const diag = Math.hypot(pw, ph);
-    const w = meanDist < diag * 0.03 ? 0.25 : meanDist < diag * 0.08 ? 0.08 : 0;
+    let w;
+    if (!carried) {
+      if (lastTracked) return;          // 途中で追跡が切れていて今のフレームに運べない → 使わない
+      w = 1;                            // 追跡できていない → 検出をそのまま使う
+    } else if (meanDist > diag * 0.12) {
+      if (++disagree < 2) return;
+      w = 1;
+    } else w = 0.5;
+    disagree = 0;
     corners = corners.map((p, i) => [p[0] + (qq[i][0] - p[0]) * w, p[1] + (qq[i][1] - p[1]) * w]);
   }
-  // 電柱はそのフレームの姿勢で測る
-  const h = history.get(m.id);
-  if (h && h.pose && m.poles.length) measurePoles(m.poles, h.pose);
-};
+  // 電柱は、検出したフレームそのものの線路の形から測る
+  if (m.poles.length && poleSamples.length < 30) {
+    const k = srcW / pw;
+    const pose = solvePose(orderQuad(m.quad).map(([x, y]) => [x * k, y * k]));
+    if (pose && hasPose) measurePoles(m.poles, pose);
+  }
+}
 
 // ---- 電柱の位置・高さ・太さ ----
 const poleSamples = [];
@@ -443,7 +471,7 @@ function drawDebug(pose) {
   focalVal.textContent = fr.toFixed(2);
   if (autoFocal) focalInput.value = Math.round(fr * 100);
   const pole = occluder.visible ? ` / 電柱${(occluder.scale.y / 1.1 * 100).toFixed(0)}cm` : '';
-  debugInfo.textContent = `${fps}fps 処理${procMs.toFixed(0)}ms / 焦点${fr.toFixed(2)} / 幅≈${asp ? (TRACK_L / asp * 100).toFixed(1) : '-'}cm / 追跡点${prevPts ? prevPts.rows : 0}${pole}${lastDetectQuad ? '' : ' / 検出なし'}`;
+  debugInfo.textContent = `${workerError ? '⚠' + workerError + ' / ' : ''}${workerReady ? '' : '検出準備中 / '}${fps}fps 処理${procMs.toFixed(0)}ms 検出${detectMs.toFixed(0)}ms / 焦点${fr.toFixed(2)} / 幅≈${asp ? (TRACK_L / asp * 100).toFixed(1) : '-'}cm / 追跡点${prevPts ? prevPts.rows : 0}${pole}${lastDetectQuad ? '' : ' / 検出なし'}`;
 }
 
 // ---- 1フレームの処理: 表示する映像と、電車の位置を必ず同じフレームから作る ----
@@ -456,7 +484,7 @@ function processFrame(now) {
 
   // 線路検出は Worker へ (重いので、まだ見つけていない時は毎回・追跡中は数フレームおき)
   if (workerReady && !workerBusy && (!corners || frameId - lastSentFrame >= DETECT_INTERVAL)) {
-    workerBusy = true; lastSentFrame = frameId;
+    workerBusy = true; lastSentFrame = frameId; sentAt = performance.now();
     const buf = imageData.data.buffer.slice(0);
     worker.postMessage({ type: 'frame', id: frameId, buffer: buf, opt: { lineT, debug, poles: poleSamples.length < 30 } }, [buf]);
   }
@@ -468,19 +496,19 @@ function processFrame(now) {
 
   let pose = null;
   try {
-    const H = corners ? track(gray) : null;
-    lastTracked = !!H;
-    if (H) { corners = corners.map((p) => applyH(H, p)); lastGood = now; }
+    const H = track(gray);
+    lastTracked = !!H && !!corners;
+    if (H && corners) { corners = corners.map((p) => applyH(H, p)); lastGood = now; }
     if (corners && now - lastGood > LOST_TRACK_MS) resetTracking();
 
     if (corners) {
       const k = srcW / pw;
       pose = solvePose(orderQuad(corners).map(([x, y]) => [x * k, y * k]));
       if (pose) applyPose(pose);
-      if (!prevPts || prevPts.rows < 60 || frameId % 15 === 0) {
-        if (prevPts) prevPts.delete();
-        prevPts = pickFeatures(gray);
-      }
+    }
+    if (!prevPts || prevPts.rows < 60 || frameId % 15 === 0) {
+      if (prevPts) prevPts.delete();
+      prevPts = pickFeatures(gray);
     }
     history.set(frameId, { H, pose });
     history.delete(frameId - 60);

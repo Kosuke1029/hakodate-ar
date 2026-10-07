@@ -234,7 +234,7 @@ onmessage = async (e) => {
     const { id, buffer, opt } = e.data;
     let res = { quad: null, poles: [], mask: null };
     try {
-      res = analyze(new ImageData(new Uint8ClampedArray(buffer), pw, ph), opt);
+      res = analyze({ data: new Uint8ClampedArray(buffer), width: pw, height: ph }, opt);
     } catch (err) {
       console.error(err);
     }
