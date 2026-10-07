@@ -7,7 +7,7 @@ const TRAIN_LEN = 0.32;      // 電車の長さ [m]
 const SPEED = 0.18;          // 走行速度 [m/s]
 const GAP = 0.20;            // 1周ごとの間隔 [m]
 const PROC_W = 480;          // 画像処理の横幅 [px]
-const FOCAL_RATIO = 0.75;    // 焦点距離の初期値 ≒ 長辺px × この値（実行中に自動補正）
+const FOCAL_RATIO = 0.8;     // 焦点距離の初期値 ≒ 長辺px × この値（実行中に自動補正。スマホの動画はおよそ 0.75〜0.85）
 const DETECT_INTERVAL = 4;   // 追跡中は何フレームごとに線路検出で補正するか
 const LOST_TRACK_MS = 1500;  // 追跡も検出もできない状態がこれだけ続いたらやり直し
 
@@ -179,8 +179,93 @@ function orderQuad(q) {
   return d(p[0], p[1]) + d(p[2], p[3]) >= d(p[1], p[2]) + d(p[3], p[0]) ? p : [p[1], p[2], p[3], p[0]];
 }
 
+// ---- 重力センサー: 机は水平なので「上」は重力の反対向き。これで電車が傾かない ----
+const FAKE_G = params.has('fakeg');   // テスト用: 最初に画像から求めた上向きを、重力センサーの値として使う
+let devUp = null, fakeUp = null;      // devUp: 端末座標の上向き (x右, y画面の上, z画面の手前)
+let sensorState = '未使用';
+function onOrientation(e) {
+  if (e.beta == null || e.gamma == null) return;
+  const b = THREE.MathUtils.degToRad(e.beta), g = THREE.MathUtils.degToRad(e.gamma);
+  const u = new THREE.Vector3(-Math.cos(b) * Math.sin(g), Math.sin(b), Math.cos(b) * Math.cos(g));
+  devUp = devUp ? devUp.lerp(u, 0.5).normalize() : u;
+  sensorState = '重力センサー';
+}
+// iPhone は「動作と方向」へのアクセス許可が必要 (ボタンを押した直後に呼ぶ)
+function enableSensors() {
+  try {
+    const DOE = window.DeviceOrientationEvent;
+    if (!DOE) { sensorState = '非対応'; return; }
+    const listen = () => { addEventListener('deviceorientation', onOrientation); sensorState = 'センサー待ち'; };
+    if (typeof DOE.requestPermission === 'function') {
+      DOE.requestPermission().then((r) => (r === 'granted' ? listen() : (sensorState = '許可されず'))).catch(() => (sensorState = '許可エラー'));
+    } else listen();
+  } catch { sensorState = 'エラー'; }
+}
+// 上向きを OpenCV カメラ座標 (x右, y下, z奥) で。背面カメラは 端末のx = 映像のx, 端末のy = 映像の上, 端末のz = 手前
+function upInCamera() {
+  if (FAKE_G) return fakeUp;
+  if (!devUp) return null;
+  const a = THREE.MathUtils.degToRad(screen.orientation?.angle ?? window.orientation ?? 0);
+  const sx = devUp.x * Math.cos(a) - devUp.y * Math.sin(a);
+  const sy = devUp.x * Math.sin(a) + devUp.y * Math.cos(a);
+  return new THREE.Vector3(sx, -sy, -devUp.z).normalize();
+}
+
+// 上向き (重力) が分かっている時: 四隅の視線を水平な机の面まで伸ばして3D位置を求める
+function solvePoseUp(img, up) {
+  const cx = srcW / 2, cy = srcH / 2, Lpx = Math.max(srcW, srcH);
+  const build = (f) => {
+    const P = [];
+    for (const [x, y] of img) {
+      const r = new THREE.Vector3((x - cx) / f, (y - cy) / f, 1);
+      const d = up.dot(r);
+      if (d > -1e-4) return null;                 // 視線が机より上を向いている
+      P.push(r.multiplyScalar(-1 / d));           // カメラの高さ 1 として机の面上の点
+    }
+    const lenL = (P[0].distanceTo(P[1]) + P[3].distanceTo(P[2])) / 2;
+    const lenW = (P[0].distanceTo(P[3]) + P[1].distanceTo(P[2])) / 2;
+    const dirL = P[1].clone().add(P[2]).sub(P[0]).sub(P[3]).normalize();
+    const dirW = P[3].clone().add(P[2]).sub(P[0]).sub(P[1]).normalize();
+    return { P, lenL, lenW, dirL, ortho: Math.abs(dirL.dot(dirW)) };
+  };
+  // 焦点距離: 線路の長辺と短辺が直角になるものを探す
+  if (autoFocal) {
+    let best = null;
+    for (let r = 0.6; r <= 1.2001; r += 0.01) {
+      const b = build(r * Lpx);
+      if (b && (!best || b.ortho < best.ortho)) best = { r, ortho: b.ortho };
+    }
+    if (best && best.r > 0.605 && best.r < 1.195) {
+      fSamples.push(best.r * Lpx);
+      if (fSamples.length > 120) fSamples.shift();
+      if (fSamples.length >= 15) {
+        const fm = median(fSamples);
+        if (Math.abs(fm - focal) / focal > 0.01) { focal = fm; updateCamera(); }
+      }
+    }
+  }
+  const f = focal;
+  const B = build(f);
+  if (!B || B.lenL / B.lenW < 2) return null;
+  const s = TRACK_L / B.lenL;                       // 線路の長さが 60cm になる縮尺
+  const center = B.P.reduce((acc, p) => acc.add(p), new THREE.Vector3()).multiplyScalar(s / 4);
+  const N = up.clone();
+  const X = B.dirL.clone().addScaledVector(N, -B.dirL.dot(N)).normalize();
+  const Y = new THREE.Vector3().crossVectors(N, X);
+  return {
+    X, Y, N, center, aspect: B.lenL / B.lenW, byGravity: true,
+    toPlane(x, y) {
+      const r = new THREE.Vector3((x - cx) / f, (y - cy) / f, 1);
+      return r.multiplyScalar(-s / N.dot(r));
+    },
+    project(P) { return [f * P.x / P.z + cx, f * P.y / P.z + cy]; },
+  };
+}
+
 // img: 線路の四隅 (元映像の px)。p0→p1 が長辺
 function solvePose(img) {
+  const up = upInCamera();
+  if (up) return solvePoseUp(img, up);
   const cx = srcW / 2, cy = srcH / 2;
   const src = cv.matFromArray(4, 2, cv.CV_32F, [0, 0, 1, 0, 1, 1, 0, 1]);
   const dst = cv.matFromArray(4, 2, cv.CV_32F, img.flatMap(([x, y]) => [x - cx, y - cy]));
@@ -216,6 +301,7 @@ function solvePose(img) {
   const aspect = a1.length() / a2.length();
   if (center.z <= 0 || aspect < 2) return null;    // 明らかにおかしい形は捨てる
   const Hinv = invert3(H);
+  if (FAKE_G && !fakeUp) fakeUp = N.clone();
   return {
     X, Y, N, center, aspect,
     // 画面上の点 (元映像の px) → 線路の平面上の3D点 (OpenCVカメラ座標)
@@ -354,7 +440,7 @@ function resetTracking() {
 }
 
 // ---- 検出 (Web Worker) ----
-const worker = new Worker('worker.js?v=9');
+const worker = new Worker('worker.js?v=10');
 const LAG = +(params.get('lag') || 0);   // テスト用: ?lag=300 で検出結果を遅らせる (遅いスマホの再現)
 let workerReady = false, workerBusy = false, lastSentFrame = -99, lastMask = null, lastDetectQuad = null;
 let detectMs = 0, sentAt = 0, disagree = 0;
@@ -471,7 +557,8 @@ function drawDebug(pose) {
   focalVal.textContent = fr.toFixed(2);
   if (autoFocal) focalInput.value = Math.round(fr * 100);
   const pole = occluder.visible ? ` / 電柱${(occluder.scale.y / 1.1 * 100).toFixed(0)}cm` : '';
-  debugInfo.textContent = `${workerError ? '⚠' + workerError + ' / ' : ''}${workerReady ? '' : '検出準備中 / '}${fps}fps 処理${procMs.toFixed(0)}ms 検出${detectMs.toFixed(0)}ms / 焦点${fr.toFixed(2)} / 幅≈${asp ? (TRACK_L / asp * 100).toFixed(1) : '-'}cm / 追跡点${prevPts ? prevPts.rows : 0}${pole}${lastDetectQuad ? '' : ' / 検出なし'}`;
+  const tilt = pose ? (pose.byGravity ? '傾き:重力' : '傾き:画像') : '';
+  debugInfo.textContent = `${tilt} (${sensorState}) / ${workerError ? '⚠' + workerError + ' / ' : ''}${workerReady ? '' : '検出準備中 / '}${fps}fps 処理${procMs.toFixed(0)}ms 検出${detectMs.toFixed(0)}ms / 焦点${fr.toFixed(2)} / 幅≈${asp ? (TRACK_L / asp * 100).toFixed(1) : '-'}cm / 追跡点${prevPts ? prevPts.rows : 0}${pole}${lastDetectQuad ? '' : ' / 検出なし'}`;
 }
 
 // ---- 1フレームの処理: 表示する映像と、電車の位置を必ず同じフレームから作る ----
@@ -594,6 +681,7 @@ function useTestImage() {
 }
 
 async function start() {
+  enableSensors();   // 許可ダイアログはボタンを押した直後でないと出せない
   startBtn.disabled = true; startBtn.textContent = '起動中…';
   try {
     source = TEST ? await useTestImage() : await startCamera();
