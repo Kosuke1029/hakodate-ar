@@ -39,3 +39,4 @@ html, body {
 }
 #debugPanel label { display: flex; gap: 6px; align-items: center; }
 #maskView { display: block; width: 120px; margin-top: 6px; }
+#debugInfo { margin-top: 4px; max-width: 200px; }

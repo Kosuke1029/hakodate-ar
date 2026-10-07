@@ -1,12 +1,12 @@
 # 函館市電 AR
 
-机の黒いケーブルカバー（約90×20cm）をスマホのカメラで写すと、函館市電500形が溝に沿って走るWeb ARです。
+段ボールに描いた線路（約60×8cm）をスマホのカメラで写すと、函館市電500形が線路の上を走るWeb ARです。
 
-- 画像認識: OpenCV.js（黒い長方形を検出 → solvePnP で姿勢推定）
+- 画像認識: OpenCV.js（段ボールの中の細い黒線 = はしご状の線路を検出 → 2本のレールに直線を当てはめ → ホモグラフィーから姿勢推定・焦点距離を自動補正）
 - 3D表示: Three.js + GLB
 
 ## ローカル開発
 ```
 python dev_server.py
 ```
-http://localhost:8765/?test&debug でテスト画像（test/table.jpg）を使った確認ができます。
+http://localhost:8765/?test=1&debug&contain でテスト画像（test/track1〜8.jpg、リポジトリには含めていません）を使った確認ができます。
