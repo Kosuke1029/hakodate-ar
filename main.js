@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // ---- 設定 ----
 const TRACK_L = 0.60;        // 段ボールの線路の長さ [m]（縦横比はカメラ映像から自動で測る）
 const TRAIN_LEN = 0.32;      // 電車の長さ [m]
-const SPEED = 0.12;          // 走行速度 [m/s]
+const SPEED = 0.18;          // 走行速度 [m/s]
 const GAP = 0.20;            // 1周ごとの間隔 [m]
 const PROC_W = 480;          // 画像処理の横幅 [px]
 const FOCAL_RATIO = 0.75;    // 焦点距離の初期値 ≒ 長辺px × この値（実行中に自動補正）
