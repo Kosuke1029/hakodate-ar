@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>デザインエディタ | 大門AR</title>
+  <link rel="stylesheet" href="css/editor.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="page-header">
+    <a href="home.html" class="back-link">← 戻る</a>
+    <h1 class="page-title">デザインエディタ</h1>
+    <div></div>
+  </header>
+
+  <main class="editor-main">
+    <!-- 3D プレビュー -->
+    <div class="preview-container">
+      <canvas id="preview"></canvas>
+    </div>
+
+    <!-- モデル選択 -->
+    <div class="model-selector-wrap">
+      <div id="model-selector" class="model-selector"></div>
+    </div>
+
+    <!-- カスタマイズパネル -->
+    <div class="customize-panel">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="parts">パーツ</button>
+        <button class="tab-btn" data-tab="face">顔</button>
+        <button class="tab-btn" data-tab="color">色</button>
+        <button class="tab-btn" data-tab="pattern">柄</button>
+        <button class="tab-btn" data-tab="body">体型</button>
+      </div>
+      <div class="tab-body">
+        <div id="tab-parts"   class="tab-pane active"></div>
+        <div id="tab-face"    class="tab-pane"></div>
+        <div id="tab-color"   class="tab-pane"></div>
+        <div id="tab-pattern" class="tab-pane"></div>
+        <div id="tab-body"    class="tab-pane"></div>
+      </div>
+    </div>
+
+    <!-- 保存 -->
+    <div class="save-section">
+      <input id="work-name" type="text" placeholder="作品名を入力…" maxlength="30" class="name-input">
+      <button id="save-btn" class="btn-primary">保存・公開</button>
+    </div>
+  </main>
+
+  <!-- type="module" にしない: HTML を直接開いた (file://) 時もブラウザに止められないように。
+       モデル (models/avatar/…) は必要になった時に js/models.js が読み込む -->
+  <script src="js/avatar-style.js"></script>
+  <script src="js/models.js"></script>
+  <script src="js/editor.js"></script>
+</body>
+</html>
