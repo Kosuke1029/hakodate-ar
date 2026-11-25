@@ -18,7 +18,7 @@
   <header class="page-header">
     <a href="home.html" class="back-link">← 戻る</a>
     <h1 class="page-title">デザインエディタ</h1>
-    <div></div>
+    <button id="new-btn" class="header-action header-button" type="button">＋ 新規</button>
   </header>
 
   <main class="editor-main">
@@ -59,6 +59,7 @@
 
   <!-- type="module" にしない: HTML を直接開いた (file://) 時もブラウザに止められないように。
        モデル (models/avatar/…) は必要になった時に js/models.js が読み込む -->
+  <script src="js/store.js"></script>
   <script src="js/avatar-style.js"></script>
   <script src="js/models.js"></script>
   <script src="js/editor.js"></script>

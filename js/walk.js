@@ -103,23 +103,24 @@ function randomPoint(out) {
 }
 
 // ---------------------------------------------------------------- キャラの読み込み
-function loadDesigns() {
-  try { return JSON.parse(localStorage.getItem('hakodate_designs') || '[]'); } catch { return []; }
-}
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  return a;
-}
-// 最近の作品から最大 MAX_CHARS 体。作品が無ければ見本 (男性・女性・犬・猫)
+// じぶんの作品のうち「ARに出す」もの (新しい順に最大 MAX_CHARS 体)。?id=… の作品は必ず入れる。
+// 1体も無ければ見本 (男性・女性・犬・猫)
 function pickDesigns(MODELS) {
-  const list = loadDesigns().filter((d) => MODELS[d.baseModel] && d.state);
-  if (!list.length) {
+  const DS = window.DesignStore;
+  const ok = (d) => d && MODELS[d.baseModel] && d.state;
+  const mine = DS.mine().filter(ok);
+  const focus = DS.get(params.get('id'));
+  const list = mine.filter((d) => d.walk !== false);
+  if (ok(focus)) list.unshift(focus);
+  const designs = [...new Map(list.map((d) => [d.id, d])).values()].slice(0, MAX_CHARS);
+  if (!designs.length) {
     return {
       sample: true,
+      hasMine: mine.length > 0,
       designs: Object.keys(MODELS).map((k) => ({ name: '見本の' + MODELS[k].label, baseModel: k, state: MODELS[k].defaultState() })),
     };
   }
-  return { sample: false, designs: shuffle(list.slice(0, 12)).slice(0, MAX_CHARS) };
+  return { sample: false, designs };
 }
 
 // 名前の札 (いつもカメラの方を向く)
@@ -849,7 +850,7 @@ function askOrientationPermission() {
     infoEl.textContent = '3D表示の読み込みに失敗しました。インターネット接続を確認してください。';
     return;
   }
-  const { sample, designs } = pickDesigns(MODELS);
+  const { sample, hasMine, designs } = pickDesigns(MODELS);
   const built = [];
   for (const d of designs) {
     const model = MODELS[d.baseModel];
@@ -860,8 +861,8 @@ function askOrientationPermission() {
   }
   walkers = built;
   infoEl.textContent = sample
-    ? 'ギャラリーにまだ作品がないので、見本のキャラクターが歩きます'
-    : `ギャラリーの作品から ${walkers.length} 体が歩きます`;
+    ? (hasMine ? '「ARに出す」作品が無いので、見本のキャラクターが歩きます' : 'まだ作品が無いので、見本のキャラクターが歩きます')
+    : `あなたの作品 ${walkers.length} 体が歩きます`;
 
   const xrOK = !params.has('mode') && await navigator.xr?.isSessionSupported?.('immersive-ar').catch(() => false);
   startBtn.disabled = false;

@@ -326,6 +326,7 @@ html, body {
   background: #fff;
 }
 .gallery-thumb {
+  display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
   background: #f0f4f8;
@@ -371,6 +372,57 @@ html, body {
   padding: 48px 0;
   grid-column: span 2;
 }
+
+/* ---- じぶんの作品 ---- */
+.header-button { border: 0; background: none; padding: 4px 0; font-family: inherit; cursor: pointer; }
+.mine-draft {
+  display: block;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #111827;
+  text-decoration: none;
+}
+.mine-draft-title { display: block; font-size: 14px; font-weight: 700; }
+.mine-draft-sub { display: block; margin-top: 2px; font-size: 12px; color: #6b7280; }
+.mine-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.mine-hint { flex: 1; margin: 0; font-size: 12px; color: #6b7280; line-height: 1.6; }
+.mine-ar { text-decoration: none; }
+.mine-walk {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.mine-walk.on { background: #ecfdf5; border-color: #6ee7b7; color: #047857; }
+.mine-actions { display: flex; gap: 6px; }
+.mine-btn {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #111827;
+  font-size: 12px;
+  font-family: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mine-del { color: #dc2626; }
+.gallery-card.just-saved { border-color: #111827; box-shadow: 0 0 0 2px #111827; }
+.mine-note { margin: 20px 0 8px; font-size: 11px; color: #9ca3af; text-align: center; line-height: 1.6; }
 
 /* ---- Home Page ---- */
 /* 背景: 夜の線路と函館山。すりガラスのカードに白い線のアイコン */
@@ -483,9 +535,12 @@ html, body {
   text-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
 }
 .home-card--main .home-card-desc { font-size: 13px; }
+.home-card--row { flex-direction: row; justify-content: flex-start; gap: 16px; padding: 14px 18px; text-align: left; }
+.home-card--row .home-icon { width: 44px; height: 44px; margin: 0; flex-shrink: 0; }
+.home-card--row .home-card-title { font-size: 17px; }
 
 /* 縦が短い画面 (iPhone SE など) でも、スクロールせずに全部見えるように詰める */
-@media (max-height: 760px) {
+@media (max-height: 860px) {
   .home-wrap { gap: 20px; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(20px, env(safe-area-inset-bottom)); }
   .home-mark { width: 72px; height: 48px; margin-bottom: 6px; }
   .home-logo { font-size: 36px; margin-bottom: 8px; }
@@ -497,6 +552,8 @@ html, body {
   .home-icon { width: 56px; height: 56px; margin-bottom: 10px; }
   .home-card--main .home-card-title { font-size: 21px; }
   .home-card-title { font-size: 17px; }
+  .home-card--row { padding: 10px 16px; }
+  .home-card--row .home-icon { width: 38px; height: 38px; margin: 0; }
 }
 
 /* ---- アバター編集 (顔・柄・体型) ---- */

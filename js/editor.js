@@ -20,8 +20,52 @@ const canvas = document.getElementById('preview');
 
 let scene, camera, renderer, controls, currentGroup;
 let baseModel = 'man';
-const states = {}; // { man: state, woman: state }  (state の形は models.js の defaultState())
+let states = {}; // { man: state, woman: state }  (state の形は models.js の defaultState())
 const stateOf = (mk = baseModel) => (states[mk] ??= MODELS[mk].defaultState());
+const DS = window.DesignStore;
+const nameInput = document.getElementById('work-name');
+let editingId = null;   // 保存ずみの作品を直している時はその id (保存すると上書き)
+
+// ---------------------------------------------------------------- 作りかけの自動保存
+// 画面を閉じても、次に開いた時に続きから作れるように。変わった時だけ書き込む
+let lastDraft = '';
+function draftJSON() {
+  return JSON.stringify({ baseModel, states, name: nameInput.value, editingId });
+}
+function saveDraft() {
+  const s = draftJSON();
+  if (s === lastDraft) return;
+  if (DS.setDraft(JSON.parse(s))) lastDraft = s;
+}
+function restore() {
+  const id = new URLSearchParams(location.search).get('id');
+  const draft = DS.getDraft();
+  // ?id=… の作品を直す。ただし同じ作品の作りかけがあれば、そちらから続ける
+  if (id && !(draft && draft.editingId === id)) {
+    const rec = DS.get(id);
+    if (rec && DS.isMine(rec) && MODELS[rec.baseModel]) {
+      baseModel = rec.baseModel;
+      states = { [rec.baseModel]: JSON.parse(JSON.stringify(rec.state)) };
+      nameInput.value = rec.name || '';
+      editingId = rec.id;
+    }
+  } else if (draft && MODELS[draft.baseModel]) {
+    baseModel = draft.baseModel;
+    states = Object.fromEntries(Object.entries(draft.states || {}).filter(([k]) => MODELS[k]));
+    nameInput.value = draft.name || '';
+    editingId = draft.editingId && DS.get(draft.editingId) ? draft.editingId : null;
+  }
+  if (editingId) history.replaceState(null, '', `editor.html?id=${editingId}`);
+  updateSaveLabel();
+  lastDraft = draftJSON();
+}
+function updateSaveLabel() {
+  document.getElementById('save-btn').textContent = editingId ? '上書き保存' : '保存・公開';
+}
+const draftTimer = setInterval(saveDraft, 1500);
+addEventListener('pagehide', saveDraft);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
+nameInput.addEventListener('input', saveDraft);
 
 // ---------------------------------------------------------------- Three.js
 
@@ -613,7 +657,6 @@ function renderModelSelector() {
 // ---------------------------------------------------------------- 保存
 
 async function saveDesign() {
-  const nameInput = document.getElementById('work-name');
   const name = nameInput.value.trim();
   if (!name) {
     nameInput.focus();
@@ -627,41 +670,62 @@ async function saveDesign() {
   btn.textContent = '保存中…';
 
   try {
+    await lastBuild;   // 見た目の組み立てが終わってから写真を撮る
+    const now = new Date().toISOString();
     const record = {
-      id: Date.now().toString(),
+      id: editingId || Date.now().toString(),
       name,
       baseModel,
       modelLabel: MODELS[baseModel].label,
       modelIcon: MODELS[baseModel].icon,
       state: JSON.parse(JSON.stringify(stateOf())),
-      thumbnail: canvas.toDataURL('image/jpeg', 0.75),
-      likes: 0,
-      createdAt: new Date().toISOString(),
+      thumbnail: DS.thumbnail(canvas),
+      updatedAt: now,
     };
+    if (!editingId) record.createdAt = now;
 
     // ----- Firebase (未設定の場合は localStorage にフォールバック) -----
     // import { db } from './firebase-config.js';
     // await db.collection('designs').add(record);
     // ---------------------------------------------------------------
 
-    const list = JSON.parse(localStorage.getItem('hakodate_designs') || '[]');
-    list.unshift(record);
-    localStorage.setItem('hakodate_designs', JSON.stringify(list.slice(0, 200)));
+    DS.put(record);
+    DS.clearDraft();
+    clearInterval(draftTimer);
+    lastDraft = draftJSON();   // ページを離れる時に作りかけとして書き戻さない
 
     btn.textContent = '保存しました！';
-    setTimeout(() => { window.location.href = 'gallery.html'; }, 900);
+    setTimeout(() => { window.location.href = `mine.html?saved=${record.id}`; }, 700);
   } catch (err) {
     console.error(err);
     btn.disabled = false;
-    btn.textContent = '保存・公開';
-    alert('保存に失敗しました');
+    updateSaveLabel();
+    alert(DS.isQuota(err)
+      ? '保存できる量がいっぱいです。「じぶんの作品」から使わない作品を削除してください。'
+      : '保存に失敗しました');
   }
+}
+
+// 作りかけを消して、はじめから作る
+function startNew() {
+  if (!confirm('いまの作りかけを消して、新しく作りますか？')) return;
+  DS.clearDraft();
+  states = {};
+  editingId = null;
+  nameInput.value = '';
+  history.replaceState(null, '', 'editor.html');
+  updateSaveLabel();
+  rebuild({ reframe: true });
+  renderActiveTab();
+  lastDraft = '';
 }
 
 // ---------------------------------------------------------------- 起動
 
+restore();
 setupTabs();
 document.getElementById('save-btn').addEventListener('click', saveDesign);
+document.getElementById('new-btn').addEventListener('click', startNew);
 initThree();
 renderModelSelector();
 rebuild({ reframe: true });

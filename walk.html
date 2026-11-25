@@ -56,7 +56,7 @@
 
     <div id="start">
       <h1>まちを歩く</h1>
-      <p>みんなが作ったキャラクターが<br>カメラに写った地面の上を歩きます</p>
+      <p>あなたが作ったキャラクターが<br>カメラに写った地面の上を歩きます</p>
       <p id="info" class="small">キャラクターを読み込んでいます…</p>
       <button id="startBtn" disabled>読み込み中…</button>
       <button id="simpleBtn" hidden>かんたんモード (カメラ映像の上に表示)</button>
@@ -64,6 +64,7 @@
   </div>
 
   <!-- avatar-style.js → models.js (普通の script) を読んでから walk.js (module) -->
+  <script src="js/store.js"></script>
   <script src="js/avatar-style.js"></script>
   <script src="js/models.js"></script>
   <script type="module" src="js/walk.js"></script>
