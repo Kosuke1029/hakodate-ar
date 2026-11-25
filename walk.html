@@ -32,7 +32,9 @@
       background: #1e2a3a url('img/home_bg.jpg') center 35% / cover no-repeat; }
     #start::before { content: ""; position: absolute; inset: 0; background: rgb(15 23 42 / 0.55); }
     #start > * { position: relative; }
-    #start[hidden], #msg[hidden], #simpleBtn[hidden] { display: none; }
+    #sizeBtn { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px;
+      padding: 8px 14px; border: 0; border-radius: 999px; background: rgb(0 0 0 / 0.45); color: #fff; font-size: 14px; }
+    #start[hidden], #msg[hidden], #simpleBtn[hidden], #sizeBtn[hidden] { display: none; }
     #start h1 { margin: 0; font-size: 30px; letter-spacing: 0.04em; }
     #start p { margin: 0; line-height: 1.7; color: #e5e7eb; }
     #start .small { font-size: 13px; color: #cbd5e1; }
@@ -49,6 +51,7 @@
   <!-- WebXR 中もこの中は表示される (dom-overlay) -->
   <div id="ui">
     <a id="back" href="home.html">← もどる</a>
+    <button id="sizeBtn" hidden>ひろさ: ふつう</button>
     <div id="msg" hidden></div>
 
     <div id="start">
