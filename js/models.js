@@ -608,8 +608,8 @@ const HUMAN = {
   headTop: 1.25, browY: 1.105,                         // 頭のてっぺん、帽子のふちの高さ (いちばん深くかぶるニット帽・バケットハット)
   eyeY: 1.10, eyeX: 0.045, lensZ: 0.133,              // 目の高さ・左右の位置、メガネのレンズの前後位置
   neckCenter: new THREE.Vector3(0, 0.955, 0), mufflerInner: 0.063,   // マフラーの巻いている所
-  chest: new THREE.Vector3(0, 0.93, 0.08),            // ネクタイ・蝶ネクタイの結び目
-  back: new THREE.Vector3(0, 0.77, -0.087), width: 0.268,           // リュックが背中に当たる所、胴の幅
+  chest: new THREE.Vector3(0, 0.93, 0.058),           // ネクタイ・蝶ネクタイの結び目
+  back: new THREE.Vector3(0, 0.77, -0.076), width: 0.268,           // リュックが背中に当たる所、犬猫に合わせる時の基準の幅
 };
 // mode: head (頭に合わせる) / eyes (目に合わせる) / neck (首に巻く) / chest (のどから下げる) / back (背中にのせる)
 // pet: 犬・猫だけの小物 (petNeckItem)、code: makeCodeItem で作るもの
