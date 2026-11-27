@@ -2,6 +2,12 @@
 const DS = window.DesignStore;
 const MAX_AR = 6;   // walk.js の MAX_CHARS と同じ
 const savedId = new URLSearchParams(location.search).get('saved');
+// ARでの動き (walk.js の AUTO_ACTS と同じ名前)
+const ACTS = {
+  human: [['auto', 'おまかせ'], ['walk', '散歩'], ['guitar', 'ギター'], ['dance', 'ダンス']],
+  pet: [['auto', 'おまかせ'], ['walk', '散歩'], ['play', 'はしゃぐ'], ['nap', 'おひるね']],
+};
+const isPet = (d) => d.baseModel === 'dog' || d.baseModel === 'cat';
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -64,6 +70,19 @@ function render() {
     walk.textContent = d.walk !== false ? '✓ ARに出す' : 'ARに出さない';
     walk.addEventListener('click', () => { DS.update(d.id, { walk: d.walk === false }); render(); });
 
+    // ARでの動き
+    const actRow = el('label', 'mine-act');
+    actRow.append(el('span', null, 'ARで'));
+    const sel = el('select');
+    for (const [id, label] of ACTS[isPet(d) ? 'pet' : 'human']) {
+      const o = el('option', null, label);
+      o.value = id;
+      o.selected = (d.act || 'auto') === id;
+      sel.appendChild(o);
+    }
+    sel.addEventListener('change', () => DS.update(d.id, { act: sel.value }));
+    actRow.appendChild(sel);
+
     const actions = el('div', 'mine-actions');
     const edit = el('a', 'mine-btn', '直す');
     edit.href = `editor.html?id=${d.id}`;
@@ -78,7 +97,7 @@ function render() {
     });
     actions.append(edit, ar, del);
 
-    info.append(walk, actions);
+    info.append(walk, actRow, actions);
     card.append(thumb, info);
     grid.appendChild(card);
   }
