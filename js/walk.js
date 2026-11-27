@@ -26,6 +26,25 @@ const BPM = 100;         // ギターとダンスのテンポ (みんな同じ�
 const AUTO_ACTS = { human: [['walk', 0.5], ['guitar', 0.25], ['dance', 0.25]], pet: [['walk', 0.5], ['play', 0.3], ['nap', 0.2]] };
 const STAGE_ACTS = new Set(['guitar', 'dance', 'nap']);   // 1か所にとどまってする
 
+// ?spot=… : 大門のスポット (js/spots.js)。そのスポットのテーマに合わせた動きのキャラが出る
+const SPOT = (window.SPOTS || []).find((s) => s.id === params.get('spot')) || null;
+if (SPOT) {
+  $('back').href = 'map.html';
+  $('start').querySelector('h1').textContent = `${SPOT.icon} ${SPOT.name}`;
+  $('start').querySelector('p').textContent = `「${SPOT.theme}」 — ${SPOT.desc}`;
+  document.title = `${SPOT.name} | 大門AR`;
+}
+// スポットから離れていたら知らせる (?try=1 は「ここで試す」なので確かめない)
+function checkSpotDistance() {
+  if (!SPOT || params.has('try') || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition((p) => {
+    const d = window.spotDistance(p.coords.latitude, p.coords.longitude, SPOT.lat, SPOT.lng);
+    if (d > SPOT.radius + Math.min(p.coords.accuracy, 40)) {
+      infoEl.textContent += ` ・ スポットから約 ${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(1) + ' km'} はなれています (このまま試せます)`;
+    }
+  }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+}
+
 const say = (t) => { msgEl.hidden = !t; msgEl.textContent = t || ''; };
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = THREE.MathUtils.clamp;
@@ -137,9 +156,10 @@ function inView(x, z, margin = 0) {
 }
 
 // ---------------------------------------------------------------- キャラの読み込み
+// 「おまかせ」はスポットのテーマ (無ければふつうの割合) で決める。作品で選んだ動きはそのまま
 function pickAct(kind, want) {
-  const list = AUTO_ACTS[kind];
-  if (want && list.some(([a]) => a === want)) return want;
+  if (want && AUTO_ACTS[kind].some(([a]) => a === want)) return want;
+  const list = SPOT?.acts?.[kind] || AUTO_ACTS[kind];
   let r = Math.random();
   for (const [a, p] of list) { if ((r -= p) <= 0) return a; }
   return 'walk';
@@ -153,6 +173,16 @@ function pickDesigns(MODELS) {
   const list = mine.filter((d) => d.walk !== false);
   if (ok(focus)) list.unshift(focus);
   const designs = [...new Map(list.map((d) => [d.id, d])).values()].slice(0, MAX_POOL);
+  if (SPOT) {
+    // スポットでは最低 SPOT_MIN 体。足りない分はスポットの見本で埋める
+    const n = designs.length;
+    const samples = SPOT.samples.filter(([k]) => MODELS[k]);
+    for (let i = 0; designs.length < (window.SPOT_MIN || 4) && i < samples.length; i++) {
+      const [k, act] = samples[i];
+      designs.push({ name: '見本の' + MODELS[k].label, baseModel: k, act, state: MODELS[k].defaultState() });
+    }
+    return { sample: n === 0, hasMine: mine.length > 0, mineCount: n, designs };
+  }
   if (!designs.length) {
     const acts = { man: 'guitar', woman: 'dance', dog: 'play', cat: 'walk' };
     return {
@@ -1577,7 +1607,7 @@ function askOrientationPermission() {
     infoEl.textContent = '3D表示の読み込みに失敗しました。インターネット接続を確認してください。';
     return;
   }
-  const { sample, hasMine, designs } = pickDesigns(MODELS);
+  const { sample, hasMine, mineCount, designs } = pickDesigns(MODELS);
   const built = [];
   for (const d of designs) {
     const model = MODELS[d.baseModel];
@@ -1587,9 +1617,17 @@ function askOrientationPermission() {
     } catch (e) { console.error(e); }
   }
   // 1か所でする人 (ギター・ダンス・おひるね) から先に出す
-  walkers = [...built.filter((w) => w.stageAct), ...built.filter((w) => !w.stageAct)];  infoEl.textContent = sample
-    ? (hasMine ? '「ARに出す」作品が無いので、見本のキャラクターが出てきます' : 'まだ作品が無いので、見本のキャラクターが出てきます')
-    : `あなたの作品 ${walkers.length} 体が出てきます`;
+  walkers = [...built.filter((w) => w.stageAct), ...built.filter((w) => !w.stageAct)];
+  if (SPOT) {
+    infoEl.textContent = mineCount
+      ? `あなたの作品 ${mineCount} 体${walkers.length > mineCount ? ` と見本 ${walkers.length - mineCount} 体` : ''}が出てきます`
+      : '見本のキャラクターが出てきます (作品を作ると、ここに出てきます)';
+    checkSpotDistance();
+  } else {
+    infoEl.textContent = sample
+      ? (hasMine ? '「ARに出す」作品が無いので、見本のキャラクターが出てきます' : 'まだ作品が無いので、見本のキャラクターが出てきます')
+      : `あなたの作品 ${walkers.length} 体が出てきます`;
+  }
 
   soundBtn.onclick = () => { initAudio(); setSound(!audio.on); };
   const begin = (fn) => () => { initAudio(); setSound(true); fn(); };

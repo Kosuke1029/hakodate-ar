@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>大門をめぐる | 大門AR</title>
+  <link rel="stylesheet" href="css/editor.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <style>
+    body.map-page { display: flex; flex-direction: column; height: 100dvh; margin: 0; }
+    #map { flex: 0 0 42dvh; min-height: 220px; z-index: 0; }
+    .map-status { margin: 0; padding: 8px 16px; font-size: 13px; color: #374151; background: #f3f4f6; }
+    .map-status.warn { color: #92400e; background: #fef3c7; }
+    .spot-list { flex: 1; overflow-y: auto; margin: 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); list-style: none; }
+    .spot { display: flex; gap: 12px; align-items: center; padding: 12px; margin-bottom: 10px;
+      border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
+    .spot.near { border-color: #f59e0b; box-shadow: 0 0 0 2px rgb(245 158 11 / 0.25); }
+    .spot-icon { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+      font-size: 22px; background: #f3f4f6; }
+    .spot-body { flex: 1; min-width: 0; }
+    .spot-name { margin: 0; font-weight: 700; font-size: 15px; }
+    .spot-theme { margin: 2px 0 0; font-size: 13px; color: #b45309; }
+    .spot-desc { margin: 2px 0 0; font-size: 12px; color: #6b7280; line-height: 1.5; }
+    .spot-dist { margin: 4px 0 0; font-size: 12px; color: #374151; }
+    .spot-go { flex: none; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+    .spot-go a { padding: 8px 12px; border-radius: 999px; font-size: 13px; text-align: center; text-decoration: none; white-space: nowrap; }
+    .spot-ar { background: #111827; color: #fff; font-weight: 700; }
+    .spot-ar.off { background: #e5e7eb; color: #6b7280; pointer-events: none; }
+    .spot-try { color: #6b7280; text-decoration: underline !important; padding: 2px 4px !important; }
+    .spot-pin { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 18px;
+      background: #fff; border: 2px solid #111827; box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); }
+    .me-dot { width: 16px; height: 16px; border-radius: 50%; background: #2563eb; border: 3px solid #fff;
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25); }
+  </style>
+</head>
+<body class="map-page">
+  <header class="page-header">
+    <a href="home.html" class="back-link">← 戻る</a>
+    <h1 class="page-title">大門をめぐる</h1>
+    <span class="header-action" style="visibility:hidden">＋</span>
+  </header>
+  <div id="map" aria-label="大門のスポットの地図"></div>
+  <p id="status" class="map-status">現在地を確認しています…</p>
+  <ul id="spots" class="spot-list"></ul>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="js/spots.js"></script>
+  <script src="js/map.js"></script>
+</body>
+</html>
